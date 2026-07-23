@@ -20,6 +20,9 @@ PRODUCTS = {
 
     "High Protein Rose Lassi":
         "https://shop.amul.com/en/product/amul-high-protein-rose-lassi-200-ml-or-pack-of-30",
+
+    "High Protein Plain Lassi": 
+        "https://shop.amul.com/en/product/amul-high-protein-plain-lassi-200-ml-or-pack-of-30",
 }
 
 
