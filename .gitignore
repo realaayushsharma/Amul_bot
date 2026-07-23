@@ -1,0 +1,6 @@
+.env
+amul_profile/
+key/
+__pycache__/
+*.pyc
+.vscode/
