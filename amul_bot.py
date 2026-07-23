@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 import requests
 from datetime import datetime
@@ -26,19 +27,21 @@ def log(msg):
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}")
 
 
-def send_telegram(message):
+def send_telegram(message, chat_id=None):
     try:
+        if chat_id is None:
+            chat_id = CHAT_ID
+
         response = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             json={
-                "chat_id": CHAT_ID,
+                "chat_id": chat_id,
                 "text": message,
             },
             timeout=20,
         )
 
         log(f"Telegram: {response.status_code}")
-        log(response.text)
 
     except Exception as e:
         log(f"Telegram Error: {e}")
@@ -76,6 +79,59 @@ def set_pincode(page):
     except Exception:
         log("ℹ️ Pincode popup not found. Assuming it's already selected.")
 
+LAST_UPDATE_ID = None
+page_lock = threading.Lock()
+def telegram_listener(page):
+    global LAST_UPDATE_ID
+
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+
+            params = {"timeout": 2}
+
+            if LAST_UPDATE_ID is not None:
+                params["offset"] = LAST_UPDATE_ID + 1
+
+            response = requests.get(url, params=params, timeout=10).json()
+
+            if response["ok"]:
+
+                for update in response["result"]:
+
+                    LAST_UPDATE_ID = update["update_id"]
+
+                    message = update.get("message", {})
+                    text = message.get("text", "")
+                    chat_id = message.get("chat", {}).get("id")
+
+                    if text == "/start":
+
+                        status = (
+                            "👋 Welcome to the Amul Stock Monitor Bot!\n\n"
+                            "📊 Current Stock Status\n\n"
+                        )
+
+                        for name, product_url in PRODUCTS.items():
+                            with page_lock:
+                                available = safe_check(page, product_url)
+
+                            if available:
+                                status += f"✅ {name}: In Stock\n"
+                            else:
+                                status += f"❌ {name}: Out of Stock\n"
+
+                        status += (
+                            "\n🔔 I'll automatically notify you whenever "
+                            "an out-of-stock product becomes available."
+                        )
+
+                        send_telegram(status, chat_id)
+
+        except Exception as e:
+            log(f"Telegram Listener Error: {e}")
+
+        time.sleep(3)
 
 def check_stock(page, url):
     page.goto(url, wait_until="networkidle")
@@ -120,15 +176,25 @@ with sync_playwright() as p:
 
     set_pincode(page)
 
+    
+    
+    threading.Thread(
+    target=telegram_listener,
+    args=(page,),
+    daemon=True
+).start()
+    
     previous = {}
 
     log("Monitoring Started...")
 
     while True:
 
-        for name, url in PRODUCTS.items():
+        
 
-            available = safe_check(page, url)
+        for name, url in PRODUCTS.items():
+            with page_lock:
+                available = safe_check(page, url)
 
             log(f"{name}: {available}")
 
