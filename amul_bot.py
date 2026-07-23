@@ -28,7 +28,7 @@ def log(msg):
 
 def send_telegram(message):
     try:
-        requests.post(
+        response = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             json={
                 "chat_id": CHAT_ID,
@@ -36,6 +36,10 @@ def send_telegram(message):
             },
             timeout=20,
         )
+
+        log(f"Telegram: {response.status_code}")
+        log(response.text)
+
     except Exception as e:
         log(f"Telegram Error: {e}")
 
